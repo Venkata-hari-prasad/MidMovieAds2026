@@ -1,0 +1,307 @@
+{
+  "categories": {
+    "movies": {
+      "exists": true,
+      "path": "videos/movies",
+      "folders": [
+        {
+          "folder_id": "movie1",
+          "exists": true,
+          "path": "videos/movies/movie1",
+          "files": [
+            {
+              "filename": "movie1.mp4",
+              "path": "videos/movies/movie1/movie1.mp4",
+              "duration_seconds": 7860
+            }
+          ]
+        },
+        {
+          "folder_id": "movie2",
+          "exists": true,
+          "path": "videos/movies/movie2",
+          "files": [
+            {
+              "filename": "movie2.mkv",
+              "path": "videos/movies/movie2/movie2.mkv",
+              "duration_seconds": 8640
+            }
+          ]
+        },
+        {
+          "folder_id": "movie3",
+          "exists": true,
+          "path": "videos/movies/movie3",
+          "files": [
+            {
+              "filename": "movie3.mp4",
+              "path": "videos/movies/movie3/movie3.mp4",
+              "duration_seconds": 7500
+            }
+          ]
+        },
+        {
+          "folder_id": "movie4",
+          "exists": true,
+          "path": "videos/movies/movie4",
+          "files": [
+            {
+              "filename": "movie4.mkv",
+              "path": "videos/movies/movie4/movie4.mkv",
+              "duration_seconds": 8400
+            }
+          ]
+        }
+      ]
+    },
+    "dev-songs": {
+      "exists": true,
+      "path": "videos/dev-songs",
+      "files": [
+        {
+          "filename": "dev-song1.mp4",
+          "path": "videos/dev-songs/dev-song1.mp4",
+          "duration_seconds": 240
+        },
+        {
+          "filename": "dev-song2.mp4",
+          "path": "videos/dev-songs/dev-song2.mp4",
+          "duration_seconds": 250
+        },
+        {
+          "filename": "dev-song3.mp4",
+          "path": "videos/dev-songs/dev-song3.mp4",
+          "duration_seconds": 260
+        },
+        {
+          "filename": "dev-song4.mp4",
+          "path": "videos/dev-songs/dev-song4.mp4",
+          "duration_seconds": 270
+        },
+        {
+          "filename": "dev-song5.mp4",
+          "path": "videos/dev-songs/dev-song5.mp4",
+          "duration_seconds": 280
+        },
+        {
+          "filename": "dev-song6.mp4",
+          "path": "videos/dev-songs/dev-song6.mp4",
+          "duration_seconds": 290
+        },
+        {
+          "filename": "dev-song7.mp4",
+          "path": "videos/dev-songs/dev-song7.mp4",
+          "duration_seconds": 300
+        },
+        {
+          "filename": "dev-song8.mp4",
+          "path": "videos/dev-songs/dev-song8.mp4",
+          "duration_seconds": 310
+        },
+        {
+          "filename": "dev-song9.mp4",
+          "path": "videos/dev-songs/dev-song9.mp4",
+          "duration_seconds": 320
+        },
+        {
+          "filename": "dev-song10.mp4",
+          "path": "videos/dev-songs/dev-song10.mp4",
+          "duration_seconds": 330
+        },
+        {
+          "filename": "dev-song11.mp4",
+          "path": "videos/dev-songs/dev-song11.mp4",
+          "duration_seconds": 340
+        },
+        {
+          "filename": "dev-song12.mp4",
+          "path": "videos/dev-songs/dev-song12.mp4",
+          "duration_seconds": 350
+        },
+        {
+          "filename": "dev-song13.mp4",
+          "path": "videos/dev-songs/dev-song13.mp4",
+          "duration_seconds": 360
+        },
+        {
+          "filename": "dev-song14.mp4",
+          "path": "videos/dev-songs/dev-song14.mp4",
+          "duration_seconds": 240
+        },
+        {
+          "filename": "dev-song15.mp4",
+          "path": "videos/dev-songs/dev-song15.mp4",
+          "duration_seconds": 260
+        },
+        {
+          "filename": "dev-song16.mp4",
+          "path": "videos/dev-songs/dev-song16.mp4",
+          "duration_seconds": 280
+        },
+        {
+          "filename": "dev-song17.mp4",
+          "path": "videos/dev-songs/dev-song17.mp4",
+          "duration_seconds": 300
+        },
+        {
+          "filename": "dev-song18.mp4",
+          "path": "videos/dev-songs/dev-song18.mp4",
+          "duration_seconds": 320
+        },
+        {
+          "filename": "dev-song19.mp4",
+          "path": "videos/dev-songs/dev-song19.mp4",
+          "duration_seconds": 340
+        },
+        {
+          "filename": "dev-song20.mp4",
+          "path": "videos/dev-songs/dev-song20.mp4",
+          "duration_seconds": 360
+        },
+        {
+          "filename": "dev-song21.mp4",
+          "path": "videos/dev-songs/dev-song21.mp4",
+          "duration_seconds": 240
+        },
+        {
+          "filename": "dev-song22.mp4",
+          "path": "videos/dev-songs/dev-song22.mp4",
+          "duration_seconds": 240
+        }
+      ]
+    },
+    "songs": {
+      "exists": true,
+      "path": "videos/songs",
+      "files": [
+        {
+          "filename": "song1.mp4",
+          "path": "videos/songs/song1.mp4",
+          "duration_seconds": 240
+        },
+        {
+          "filename": "song2.mp4",
+          "path": "videos/songs/song2.mp4",
+          "duration_seconds": 260
+        },
+        {
+          "filename": "song3.mp4",
+          "path": "videos/songs/song3.mp4",
+          "duration_seconds": 280
+        },
+        {
+          "filename": "song4.mp4",
+          "path": "videos/songs/song4.mp4",
+          "duration_seconds": 300
+        },
+        {
+          "filename": "song5.mp4",
+          "path": "videos/songs/song5.mp4",
+          "duration_seconds": 320
+        },
+        {
+          "filename": "song6.mp4",
+          "path": "videos/songs/song6.mp4",
+          "duration_seconds": 340
+        },
+        {
+          "filename": "song7.mp4",
+          "path": "videos/songs/song7.mp4",
+          "duration_seconds": 360
+        },
+        {
+          "filename": "song8.mp4",
+          "path": "videos/songs/song8.mp4",
+          "duration_seconds": 240
+        },
+        {
+          "filename": "song9.mp4",
+          "path": "videos/songs/song9.mp4",
+          "duration_seconds": 280
+        },
+        {
+          "filename": "song10.mp4",
+          "path": "videos/songs/song10.mp4",
+          "duration_seconds": 300
+        },
+        {
+          "filename": "song11.mp4",
+          "path": "videos/songs/song11.mp4",
+          "duration_seconds": 320
+        },
+        {
+          "filename": "song12.mp4",
+          "path": "videos/songs/song12.mp4",
+          "duration_seconds": 300
+        },
+        {
+          "filename": "song13.mp4",
+          "path": "videos/songs/song13.mp4",
+          "duration_seconds": 300
+        },
+        {
+          "filename": "song14.mp4",
+          "path": "videos/songs/song14.mp4",
+          "duration_seconds": 300
+        },
+        {
+          "filename": "song15.mp4",
+          "path": "videos/songs/song15.mp4",
+          "duration_seconds": 300
+        },
+        {
+          "filename": "song16.mp4",
+          "path": "videos/songs/song16.mp4",
+          "duration_seconds": 300
+        },
+        {
+          "filename": "song17.mp4",
+          "path": "videos/songs/song17.mp4",
+          "duration_seconds": 300
+        }
+      ]
+    },
+    "ads": {
+      "exists": true,
+      "path": "videos/ads",
+      "files": [
+        {
+          "filename": "ad1.mp4",
+          "path": "videos/ads/ad1.mp4",
+          "duration_seconds": 5
+        },
+        {
+          "filename": "ad2.mp4",
+          "path": "videos/ads/ad2.mp4",
+          "duration_seconds": 5
+        },
+        {
+          "filename": "ad3.mp4",
+          "path": "videos/ads/ad3.mp4",
+          "duration_seconds": 5
+        }
+      ]
+    },
+    "movie-songs": {
+      "exists": true,
+      "path": "videos/movie-songs",
+      "files": [
+        {
+          "filename": "movie-song1.mp4",
+          "path": "videos/movie-songs/movie-song1.mp4",
+          "duration_seconds": 480
+        },
+        {
+          "filename": "movie-song2.mp4",
+          "path": "videos/movie-songs/movie-song2.mp4",
+          "duration_seconds": 480
+        },
+        {
+          "filename": "movie-song3.mp4",
+          "path": "videos/movie-songs/movie-song3.mp4",
+          "duration_seconds": 480
+        }
+      ]
+    }
+  }
+}

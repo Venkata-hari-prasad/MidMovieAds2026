@@ -1,0 +1,29 @@
+{
+  "movie": {
+    "segment_duration_minutes": 20,
+    "playback_context_buffer_seconds": 20,
+    "minimum_last_segment_duration_minutes": 10,
+    "allowed_start_minutes": [
+      0,
+      30
+    ],
+    "start_time_tolerance_seconds": 60
+  },
+  "advertisement": {
+    "playback_order": "random",
+    "repeat_count": 1
+  },
+  "songs": {
+    "playback_order": "random",
+    "cut_early_seconds": 5
+  },
+  "morning_schedule": {
+    "start_time": "06:00",
+    "dev_songs_duration_minutes": 120,
+    "songs_duration_minutes": 60,
+    "transition_black_duration_seconds": 10
+  },
+  "broadcast": {
+    "end_time": "18:00"
+  }
+}
