@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SOURCE_ROOT))
@@ -130,47 +131,49 @@ class AdvertisementValidatorTests(unittest.TestCase):
             self.assertTrue(ui.confirm_advertisement_load({"total_ad_duration_seconds": 225, "repeat_count": 1, "total_playback_duration_seconds": 225, "movie_segment_duration_seconds": 1500, "load_percent": 15}))
         self.assertIn("Please enter y or n", ui.stream.getvalue())
 
-    def test_fatal_ad_error_stops_before_discovery_and_simulation(self) -> None:
-        raw = {"categories": {"movies": {"folders": [{"folder_id": "m1", "files": [
-            {"filename": "movie.mp4", "path": "movie.mp4", "duration_seconds": 3600}]}]},
-            "ads": {"files": [ad("bad.avi")]}}}
+    def test_fatal_ad_error_stops_before_simulation(self) -> None:
+        raw = {"source_type": "json", "source": {"kind": "json", "path": "fixture.json"},
+               "categories": {"movies": {"exists": True, "folders": [{"folder_id": "movie1", "exists": True, "files": [
+                   {"filename": "movie.mp4", "path": "videos/movies/movie1/movie.mp4", "duration_seconds": 3600}]}]},
+                   "ads": {"exists": True, "files": [ad("bad.avi")]}}}
         output = io.StringIO()
-        with patch.object(sys, "argv", ["main.py", "--mode", "json", "--simulate"]), \
-             patch.object(app_main, "_load_raw_json_inventory", return_value=raw), \
+        with patch.object(sys, "argv", ["main.py", "--mode", "json"]), \
+             patch.object(app_main, "check_license", return_value=SimpleNamespace(valid=True)), \
              patch.object(app_main, "load_settings", return_value={
                  "movie": {"segment_duration_minutes": 25, "allowed_start_minutes": [0, 30], "start_time_tolerance_seconds": 60},
                  "advertisement": {"repeat_count": 1},
                  "morning_schedule": {"start_time": "06:00", "dev_songs_duration_minutes": 120, "songs_duration_minutes": 60, "transition_black_duration_seconds": 10},
                  "broadcast": {"end_time": "22:00"},
              }), \
-             patch.object(app_main, "discover_media") as discover, \
+             patch.object(app_main, "discover_media", return_value=raw) as discover, \
              patch.object(app_main, "run_simulation") as simulate, \
              contextlib.redirect_stdout(output):
             code = app_main.main()
         self.assertEqual(code, 2)
-        discover.assert_not_called()
+        discover.assert_called_once_with({"discovery_mode": "json"})
         simulate.assert_not_called()
         self.assertIn("ADVERTISEMENT error", output.getvalue())
         self.assertIn("MEDIAAD-008", output.getvalue())
 
-    def test_warning_rejection_stops_before_discovery(self) -> None:
-        raw = {"categories": {"movies": {"folders": [{"folder_id": "m1", "files": [
-            {"filename": "movie.mp4", "path": "movie.mp4", "duration_seconds": 3600}]}]},
-            "ads": {"files": [ad("spot.mp4", 225)]}}}
+    def test_warning_rejection_stops_before_song_validation_and_simulation(self) -> None:
+        raw = {"source_type": "json", "source": {"kind": "json", "path": "fixture.json"},
+               "categories": {"movies": {"exists": True, "folders": [{"folder_id": "movie1", "exists": True, "files": [
+                   {"filename": "movie.mp4", "path": "videos/movies/movie1/movie.mp4", "duration_seconds": 3600}]}]},
+                   "ads": {"exists": True, "files": [ad("spot.mp4", 225)]}}}
         output = io.StringIO()
         with patch.object(sys, "argv", ["main.py", "--mode", "json"]), \
-             patch.object(app_main, "_load_raw_json_inventory", return_value=raw), \
+             patch.object(app_main, "check_license", return_value=SimpleNamespace(valid=True)), \
              patch.object(app_main, "load_settings", return_value={
                  "movie": {"segment_duration_minutes": 25, "allowed_start_minutes": [0, 30], "start_time_tolerance_seconds": 60},
                  "advertisement": {"repeat_count": 1},
                  "morning_schedule": {"start_time": "06:00", "dev_songs_duration_minutes": 120, "songs_duration_minutes": 60, "transition_black_duration_seconds": 10},
                  "broadcast": {"end_time": "22:00"},
              }), \
-             patch.object(app_main, "discover_media") as discover, \
+             patch.object(app_main, "discover_media", return_value=raw) as discover, \
              patch("builtins.input", return_value="n"), contextlib.redirect_stdout(output):
             code = app_main.main()
         self.assertEqual(code, 2)
-        discover.assert_not_called()
+        discover.assert_called_once_with({"discovery_mode": "json"})
         self.assertIn("15.00%", output.getvalue())
 
 

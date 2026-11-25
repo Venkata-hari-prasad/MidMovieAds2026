@@ -47,8 +47,8 @@ class DiscoveryModeError(ValueError):
 
 def load_config(config_path: str | Path | None = None) -> dict[str, Any]:
     """Load the application's JSON configuration object."""
-    project_root = Path(__file__).resolve().parents[1]
-    path = Path(config_path) if config_path else project_root / "config" / "settings.json"
+    source_root = Path(__file__).resolve().parents[1]
+    path = Path(config_path) if config_path else source_root / "config" / "settings.json"
     if not path.exists():
         return {}
     value = json.loads(path.read_text(encoding="utf-8"))
@@ -60,14 +60,15 @@ def load_config(config_path: str | Path | None = None) -> dict[str, Any]:
 def discover_media(config: dict[str, Any] | None = None) -> dict[str, Any]:
     """Discover media using the configured `filesystem` or `json` provider.
 
-    `media_root` defaults to `videos` relative to the source project directory;
-    `inventory_path` defaults to `test_data/media_inventory.json` there.
+    `media_root` defaults to the project-root `videos` directory;
+    `inventory_path` defaults to `source/test_data/media_inventory.json`.
     """
     settings: dict[str, Any] = load_config()
     if config:
         settings.update(config)
 
-    project_root = Path(__file__).resolve().parents[1]
+    source_root = Path(__file__).resolve().parents[1]
+    project_root = source_root.parent
     configured_mode = settings.get("discovery_mode")
     if configured_mode is None:
         raise DiscoveryModeError(
@@ -84,7 +85,7 @@ def discover_media(config: dict[str, Any] | None = None) -> dict[str, Any]:
     if mode == "json":
         inventory_path = Path(settings.get("inventory_path", "test_data/media_inventory.json"))
         if not inventory_path.is_absolute():
-            inventory_path = project_root / inventory_path
+            inventory_path = source_root / inventory_path
         inventory = discover_json(inventory_path)
         inventory["source"] = {"kind": "json", "path": str(inventory_path.resolve())}
         return inventory

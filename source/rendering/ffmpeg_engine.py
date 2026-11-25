@@ -13,11 +13,13 @@ import sys
 from typing import Any
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = SOURCE_ROOT.parent
 if str(SOURCE_ROOT) not in sys.path:
     sys.path.insert(0, str(SOURCE_ROOT))
 
 from reporting.terminal_ui import TerminalUI  # noqa: E402
 from rendering.output_manager import OutputManager, RenderOutputError, RenderSession  # noqa: E402
+from security.license_manager import check_license  # noqa: E402
 
 
 class RenderingError(RuntimeError):
@@ -41,7 +43,7 @@ BLACK_FRAME_RATE = 30
 
 def latest_timeline(timeline_directory: str | Path | None = None) -> Path:
     """Find the latest timeline by the project's timestamped filename convention."""
-    directory = Path(timeline_directory) if timeline_directory else SOURCE_ROOT / "videos" / "output" / "timelines"
+    directory = Path(timeline_directory) if timeline_directory else PROJECT_ROOT / "videos" / "output" / "timelines"
     directory = directory.expanduser().resolve()
     candidates = sorted(directory.glob("timeline_*.json")) if directory.is_dir() else []
     if not candidates:
@@ -94,7 +96,7 @@ def _source_path(raw_path: Any, filename: str) -> Path:
         raise RenderingError(f"Timeline source path is missing for {filename}.")
     path = Path(raw_path).expanduser()
     if not path.is_absolute():
-        path = SOURCE_ROOT / path
+        path = PROJECT_ROOT / path
     path = path.resolve()
     if not path.is_file():
         raise RenderingError(f"Source media file does not exist: {path}")
@@ -371,7 +373,7 @@ def render_timeline(
             )
         prepared.append((item, source_path, metadata, _output_name(item, len(items))))
 
-    root = Path(output_directory).expanduser() if output_directory else SOURCE_ROOT / "videos" / "output" / "renders"
+    root = Path(output_directory).expanduser() if output_directory else PROJECT_ROOT / "videos" / "output" / "renders"
     planned_duration_total = sum(
         _number(item.get("broadcast_duration_seconds"), f"Timeline item {item['sequence']} duration")
         for item, _, _, _ in prepared
@@ -478,10 +480,14 @@ def main() -> int:
     parser.add_argument(
         "--output-directory",
         type=Path,
-        help="Root directory for this render run; defaults to source/videos/output/renders.",
+        help="Root directory for this render run; defaults to videos/output/renders at the project root.",
     )
     args = parser.parse_args()
     terminal = TerminalUI()
+    license_result = check_license()
+    terminal.license_check_result(license_result)
+    if not license_result.valid:
+        return 3
     try:
         render_timeline(args.timeline, args.output_directory, terminal)
     except RenderConfirmationRejected as exc:

@@ -6,6 +6,7 @@ import sys
 import unittest
 from unittest.mock import patch
 import contextlib
+from types import SimpleNamespace
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SOURCE_ROOT))
@@ -68,8 +69,8 @@ class SongValidatorTests(unittest.TestCase):
     def _application_inventory(movie_song_duration: int) -> dict:
         data = inventory(movie=[song("filler.mp4", movie_song_duration)])
         data["categories"]["movies"] = {"exists": True, "folders": [{
-            "folder_id": "m1", "exists": True, "path": "videos/movies/m1",
-            "files": [{"filename": "movie.mp4", "path": "videos/movies/m1/movie.mp4", "duration_seconds": 3600}],
+            "folder_id": "movie1", "exists": True, "path": "videos/movies/movie1",
+            "files": [{"filename": "movie.mp4", "path": "videos/movies/movie1/movie.mp4", "duration_seconds": 3600}],
         }]}
         data["categories"]["ads"] = {"exists": True, "files": []}
         return data
@@ -219,36 +220,39 @@ class SongValidatorTests(unittest.TestCase):
 
     def test_song_fatal_error_stops_before_discovery_and_simulation(self) -> None:
         output = io.StringIO()
-        with patch.object(sys, "argv", ["main.py", "--mode", "json", "--simulate"]), \
-             patch.object(app_main, "_load_raw_json_inventory", return_value=self._application_inventory(300)), \
+        with patch.object(sys, "argv", ["main.py", "--mode", "json"]), \
+             patch.object(app_main, "check_license", return_value=SimpleNamespace(valid=True)), \
+             patch.object(app_main, "discover_media", return_value=self._application_inventory(300)) as discover, \
              patch.object(app_main, "load_settings", return_value=self._application_settings()), \
-             patch.object(app_main, "discover_media") as discover, \
              patch.object(app_main, "run_simulation") as simulate, \
              contextlib.redirect_stdout(output):
             result = app_main.main()
         self.assertEqual(result, 2)
-        discover.assert_not_called()
+        discover.assert_called_once_with({"discovery_mode": "json"})
         simulate.assert_not_called()
         self.assertIn("MEDIAMOVIESONG-016", output.getvalue())
 
     def test_rejected_song_capacity_warning_stops_before_discovery(self) -> None:
         output = io.StringIO()
         with patch.object(sys, "argv", ["main.py", "--mode", "json"]), \
-             patch.object(app_main, "_load_raw_json_inventory", return_value=self._application_inventory(1044)), \
+             patch.object(app_main, "check_license", return_value=SimpleNamespace(valid=True)), \
+             patch.object(app_main, "discover_media", return_value=self._application_inventory(1044)) as discover, \
              patch.object(app_main, "load_settings", return_value=self._application_settings()), \
-             patch.object(app_main, "discover_media") as discover, \
              patch("builtins.input", return_value="n"), contextlib.redirect_stdout(output):
             result = app_main.main()
         self.assertEqual(result, 2)
-        discover.assert_not_called()
+        discover.assert_called_once_with({"discovery_mode": "json"})
         self.assertIn("MEDIAMOVIESONG-W001", output.getvalue())
 
     def test_accepted_song_capacity_warning_continues_to_discovery(self) -> None:
         with patch.object(sys, "argv", ["main.py", "--mode", "json"]), \
-             patch.object(app_main, "_load_raw_json_inventory", return_value=self._application_inventory(1044)), \
+             patch.object(app_main, "check_license", return_value=SimpleNamespace(valid=True)), \
              patch.object(app_main, "load_settings", return_value=self._application_settings()), \
-             patch.object(app_main, "discover_media", return_value={}) as discover, \
+             patch.object(app_main, "discover_media", return_value=self._application_inventory(1044)) as discover, \
              patch.object(app_main.TerminalUI, "discovery_results"), \
+             patch.object(app_main, "run_simulation", return_value={"ending_schedule": {}}), \
+             patch.object(app_main.TerminalUI, "simulation_results"), \
+             patch.object(app_main.TerminalUI, "broadcast_end_time_report"), \
              patch("builtins.input", return_value="y"):
             result = app_main.main()
         self.assertEqual(result, 0)

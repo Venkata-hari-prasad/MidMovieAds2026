@@ -59,7 +59,9 @@ def songs_with_durations(*durations: int) -> list[dict[str, object]]:
 class SongSelectionTests(unittest.TestCase):
     def test_morning_schedule_has_sequential_devotional_and_regular_blocks(self) -> None:
         inventory = discover_media({"discovery_mode": "json"})
-        morning = build_morning_schedule(inventory, load_settings())
+        configured = load_settings()
+        configured["schedule_toggles"]["morning_block_enabled"] = True
+        morning = build_morning_schedule(inventory, configured)
         self.assertEqual(morning["start_timestamp"], "06:00:00")
         self.assertEqual(morning["end_timestamp"], "09:00:00")
         self.assertEqual(
@@ -194,12 +196,12 @@ class SongSelectionTests(unittest.TestCase):
         # inventory, which may deliberately be edited for validation testing.
         inventory["categories"]["movies"]["folders"] = [
             {
-                "folder_id": f"m{index}",
+                "folder_id": f"movie{index}",
                 "exists": True,
-                "path": f"videos/movies/m{index}",
+                "path": f"videos/movies/movie{index}",
                 "files": [{
                     "filename": f"movie{index}.mp4",
-                    "path": f"videos/movies/m{index}/movie{index}.mp4",
+                    "path": f"videos/movies/movie{index}/movie{index}.mp4",
                     "duration_seconds": duration,
                     "category": "movies",
                     "source_type": "json",
@@ -217,6 +219,7 @@ class SongSelectionTests(unittest.TestCase):
         settings["movie"]["segment_duration_minutes"] = 25
         settings["advertisement"]["repeat_count"] = 1
         settings["songs"]["playback_order"] = "given"
+        settings["schedule_toggles"]["morning_block_enabled"] = True
         # This fixture's existing timeline runs past 18:00, exercising the
         # informational overrun path without requiring ending-song capacity.
         settings["broadcast"]["end_time"] = "18:00"

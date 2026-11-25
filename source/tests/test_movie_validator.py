@@ -5,6 +5,7 @@ import io
 from pathlib import Path
 import sys
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
@@ -19,7 +20,7 @@ from validation.movie_validator import (  # noqa: E402
 
 
 def movie_file(name: str = "movie1.mp4", duration: object = 3600) -> dict:
-    record = {"filename": name, "path": f"videos/movies/m1/{name}"}
+    record = {"filename": name, "path": f"videos/movies/movie1/{name}"}
     if duration is not MISSING:
         record["duration_seconds"] = duration
     return record
@@ -34,9 +35,9 @@ MISSING = _Missing()
 
 def folder(number: int, files: list[dict] | None = None, name: str | None = None) -> dict:
     return {
-        "folder_id": name or f"m{number}",
+        "folder_id": name or f"movie{number}",
         "exists": True,
-        "path": f"videos/movies/m{number}",
+        "path": f"videos/movies/movie{number}",
         "files": files or [],
     }
 
@@ -73,7 +74,7 @@ class MovieValidatorTests(unittest.TestCase):
 
     def test_folder_number_above_maximum_is_invalid(self) -> None:
         errors = validate_movies(inventory([folder(1, [movie_file()]), folder(7, [movie_file("movie7.mp4")])]))
-        self.assertTrue(any("MOVIE7 exceeds the maximum" in error for error in errors))
+        self.assertTrue(any("MEDIAMOVIE-011" in error for error in errors))
 
     def test_empty_movies_collection_is_invalid(self) -> None:
         errors = validate_movies(inventory([]))
@@ -81,25 +82,25 @@ class MovieValidatorTests(unittest.TestCase):
 
     def test_multiple_movie_files_in_folder_is_invalid(self) -> None:
         errors = validate_movies(inventory([folder(1, [movie_file(), movie_file("backup.mp4")])]))
-        self.assertTrue(any("MOVIE1 contains 2 movie files" in error for error in errors))
+        self.assertTrue(any("MEDIAMOVIE-016" in error for error in errors))
 
     def test_unsupported_movie_extension_is_invalid(self) -> None:
         errors = validate_movies(inventory([folder(1, [movie_file("notes.txt")])]))
-        self.assertTrue(any("Unsupported file format: notes.txt" in error for error in errors))
+        self.assertTrue(any("MEDIAMOVIE-019" in error for error in errors))
 
     def test_missing_duration_metadata_is_invalid(self) -> None:
         errors = validate_movies(inventory([folder(1, [movie_file(duration=MISSING)])]))
-        self.assertTrue(any("Duration metadata is missing" in error for error in errors))
+        self.assertTrue(any("MEDIAMOVIE-021" in error for error in errors))
 
     def test_zero_negative_and_non_numeric_durations_are_invalid(self) -> None:
         for duration in (0, -1, "3600", True, float("inf"), float("nan")):
             with self.subTest(duration=duration):
                 errors = validate_movies(inventory([folder(1, [movie_file(duration=duration)])]))
-                self.assertTrue(any("duration metadata" in error.lower() and "invalid" in error.lower() for error in errors))
+                self.assertTrue(any("MEDIAMOVIE-022" in error for error in errors))
 
     def test_duration_below_minimum_is_invalid(self) -> None:
         errors = validate_movies(inventory([folder(1, [movie_file(duration=MIN_MOVIE_DURATION_SECONDS - 1)])]))
-        self.assertTrue(any("minimum allowed is 30 minutes" in error for error in errors))
+        self.assertTrue(any("MEDIAMOVIE-023" in error for error in errors))
 
     def test_exact_minimum_duration_is_valid(self) -> None:
         self.assertEqual(validate_movies(inventory([folder(1, [movie_file(duration=MIN_MOVIE_DURATION_SECONDS)])])), [])
@@ -109,46 +110,31 @@ class MovieValidatorTests(unittest.TestCase):
 
     def test_duration_above_maximum_is_invalid(self) -> None:
         errors = validate_movies(inventory([folder(1, [movie_file(duration=MAX_MOVIE_DURATION_SECONDS + 1)])]))
-        self.assertTrue(any("maximum allowed is 4 hours" in error for error in errors))
+        self.assertTrue(any("MEDIAMOVIE-024" in error for error in errors))
 
     def test_nested_folders_are_invalid(self) -> None:
         nested = folder(1, [movie_file()])
-        nested["folders"] = [{"folder_id": "m1-part"}]
+        nested["folders"] = [{"folder_id": "movie1-part"}]
         errors = validate_movies(inventory([nested]))
         self.assertTrue(any("nested folders are not permitted" in error.lower() for error in errors))
 
-    def test_validation_failure_stops_before_discovery_and_simulation(self) -> None:
+    def test_validation_failure_stops_before_simulation(self) -> None:
         bad = inventory([folder(1, [movie_file(duration=1)])])
         output = io.StringIO()
-        with patch.object(sys, "argv", ["main.py", "--mode", "json", "--simulate"]), \
-             patch.object(app_main, "_load_raw_json_inventory", return_value=bad), \
-             patch.object(app_main, "discover_media") as discover, \
+        with patch.object(sys, "argv", ["main.py", "--mode", "json"]), \
+             patch.object(app_main, "check_license", return_value=SimpleNamespace(valid=True)), \
+             patch.object(app_main, "discover_media", return_value=bad) as discover, \
              patch.object(app_main, "run_simulation") as simulate, \
              contextlib.redirect_stdout(output):
             code = app_main.main()
         self.assertEqual(code, 2)
-        discover.assert_not_called()
+        discover.assert_called_once_with({"discovery_mode": "json"})
         simulate.assert_not_called()
         self.assertNotIn("MEDIA DISCOVERY", output.getvalue())
         self.assertIn("ERROR 1 - MEDIAMOVIE-023 - MOVIE error", output.getvalue())
 
     def test_successful_json_mode_prints_discovery_and_keeps_timeline_toggle(self) -> None:
         good = inventory([folder(1, [movie_file()])])
-        good["categories"]["dev-songs"] = {
-            "exists": True,
-            "files": [{"filename": f"dev{i}.mp4", "path": f"videos/dev-songs/dev{i}.mp4", "duration_seconds": 1200} for i in range(1, 7)],
-        }
-        good["categories"]["songs"] = {
-            "exists": True,
-            "files": [{"filename": f"regular{i}.mp4", "path": f"videos/songs/regular{i}.mp4", "duration_seconds": 600} for i in range(1, 7)],
-        }
-        good["categories"]["movie-songs"] = {
-            "exists": True,
-            "files": [
-                {"filename": f"filler{i}.mp4", "path": f"videos/movie-songs/filler{i}.mp4", "duration_seconds": 300}
-                for i in range(1, 7)
-            ],
-        }
         normalized = {
             "source_type": "json",
             "source": {"kind": "json", "path": "fixture.json"},
@@ -161,9 +147,11 @@ class MovieValidatorTests(unittest.TestCase):
             },
         }
         output = io.StringIO()
-        with patch.object(sys, "argv", ["main.py", "--mode", "json", "--simulate"]), \
-             patch.object(app_main, "_load_raw_json_inventory", return_value=good), \
+        with patch.object(sys, "argv", ["main.py", "--mode", "json"]), \
+             patch.object(app_main, "check_license", return_value=SimpleNamespace(valid=True)), \
              patch.object(app_main, "discover_media", return_value=normalized), \
+             patch.object(app_main, "validate_advertisements", return_value={"errors": [], "warning": None}), \
+             patch.object(app_main, "validate_songs", return_value={"errors": [], "warnings": [], "skipped": False}), \
              patch.object(app_main, "load_settings", return_value={
                  "movie": {"segment_duration_minutes": 25, "allowed_start_minutes": [0, 30], "start_time_tolerance_seconds": 60},
                  "advertisement": {"repeat_count": 1},

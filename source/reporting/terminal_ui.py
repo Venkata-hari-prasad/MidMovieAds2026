@@ -35,6 +35,15 @@ class TerminalUI:
     def status(self, message: str) -> None:
         print(self._paint(message, "36"), file=self.stream)
 
+    def license_check_result(self, result: Any) -> None:
+        """Show the activation result and the machine fingerprint when action is needed."""
+        if result.valid:
+            print(self._paint("LICENSE CHECK PASSED", "1;32"), file=self.stream)
+            return
+        print(self._paint(f"LICENSE ERROR {result.code}: {result.message}", "1;31"), file=self.stream)
+        if result.fingerprint:
+            print(self._paint(f"  Machine fingerprint: {result.fingerprint}", "1;33"), file=self.stream)
+
     def render_started(self, timeline_path: str, item_count: int, output_directory: str) -> None:
         """Show the input blueprint and isolated render destination."""
         print(self._paint("\nMIDMOVIEADS-2026  |  RENDER", "1;36"), file=self.stream)

@@ -49,7 +49,7 @@ def _format_duration(seconds: float) -> str:
 
 def latest_timeline(timeline_directory: str | Path | None = None) -> Path:
     """Find the most recently generated timeline in the output convention."""
-    folder = Path(timeline_directory) if timeline_directory else SOURCE_ROOT / "videos" / "output" / "timelines"
+    folder = Path(timeline_directory) if timeline_directory else PROJECT_ROOT / "videos" / "output" / "timelines"
     folder = folder.expanduser().resolve()
     candidates = list(folder.glob("timeline_*.json")) if folder.is_dir() else []
     if not candidates:

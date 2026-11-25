@@ -283,24 +283,31 @@ def check_timeline(
         morning_timing_correct &= bool(morning_block_items) and morning_block_items[0].wall_clock_start_timestamp == morning["start_timestamp"]
         morning_timing_correct &= morning_block_items[-1].wall_clock_end_timestamp == morning["end_timestamp"]
         morning_timing_correct &= _same(sum(item.broadcast_duration_seconds for item in morning_block_items), 180 * 60)
-        morning_timing_correct &= len(transition_items) == (2 if transition_seconds else 0)
+        active_sections = [section for section in morning_sections if section["configured_duration_minutes"] > 0]
+        morning_timing_correct &= len(transition_items) == (len(active_sections) if transition_seconds else 0)
         for left, right in zip(morning_block_items, morning_block_items[1:]):
             morning_timing_correct &= left.elapsed_broadcast_end_seconds == right.elapsed_broadcast_start_seconds
             morning_timing_correct &= left.wall_clock_end_timestamp == right.wall_clock_start_timestamp
         devotional_items = [item for item in morning_items if item.source_category == "dev-songs"]
         regular_morning_items = [item for item in morning_items if item.source_category == "songs"]
-        morning_timing_correct &= bool(devotional_items) and bool(regular_morning_items)
-        if devotional_items and regular_morning_items:
+        morning_timing_correct &= bool(devotional_items) == (settings["morning_schedule"]["dev_songs_duration_minutes"] > 0)
+        morning_timing_correct &= bool(regular_morning_items) == (settings["morning_schedule"]["songs_duration_minutes"] > 0)
+        if morning_sections:
             for section in morning_sections:
                 section_items = [item for item in morning_block_items if item.source_category == section["collection"]]
                 section_songs = [item for item in section_items if item.media_type == "song"]
                 section_transitions = [item for item in section_items if item.media_type == "black_video_placeholder"]
                 required_block_duration = section["configured_duration_minutes"] * 60
+                morning_timing_correct &= _same(sum(item.broadcast_duration_seconds for item in section_items), required_block_duration)
+                if required_block_duration == 0:
+                    morning_timing_correct &= _same(sum(item.broadcast_duration_seconds for item in section_songs), 0)
+                    morning_timing_correct &= not section_items and not section_songs and not section_transitions
+                    morning_timing_correct &= section["wall_clock_start_timestamp"] == section["wall_clock_end_timestamp"]
+                    continue
+                morning_timing_correct &= _same(sum(item.broadcast_duration_seconds for item in section_songs), required_block_duration - transition_seconds)
                 morning_timing_correct &= bool(section_songs)
                 morning_timing_correct &= bool(section_items) and section_items[0].wall_clock_start_timestamp == section["wall_clock_start_timestamp"]
                 morning_timing_correct &= section_items[-1].wall_clock_end_timestamp == section["wall_clock_end_timestamp"]
-                morning_timing_correct &= _same(sum(item.broadcast_duration_seconds for item in section_items), required_block_duration)
-                morning_timing_correct &= _same(sum(item.broadcast_duration_seconds for item in section_songs), required_block_duration - transition_seconds)
                 morning_timing_correct &= len(section_transitions) == (1 if transition_seconds else 0)
                 if section_transitions:
                     transition = section_transitions[0]
@@ -308,9 +315,9 @@ def check_timeline(
                     morning_timing_correct &= transition.source_path is None and transition.reason is not None
                     morning_timing_correct &= section_songs[-1].wall_clock_end_timestamp == transition.wall_clock_start_timestamp
             morning_timing_correct &= morning_sections[0]["wall_clock_end_timestamp"] == morning_sections[1]["wall_clock_start_timestamp"]
-            if transition_seconds and len(transition_items) == 2:
-                morning_timing_correct &= transition_items[0].source_category == "dev-songs"
-                morning_timing_correct &= transition_items[-1].source_category == "songs"
+            if transition_seconds:
+                expected_transition_categories = [section["collection"] for section in active_sections]
+                morning_timing_correct &= [item.source_category for item in transition_items] == expected_transition_categories
         morning_sources_correct = all(
             item.source_path in {song["path"] for song in inventory["categories"][item.source_category].get("files", [])}
             for item in morning_items
@@ -523,8 +530,8 @@ def run_simulation(
     if failed:
         raise SimulationConsistencyError("Simulation consistency checks failed: " + ", ".join(failed))
 
-    source_root = Path(__file__).resolve().parents[1]
-    destination = Path(output_directory) if output_directory is not None else source_root / "videos" / "output" / "timelines"
+    project_root = Path(__file__).resolve().parents[2]
+    destination = Path(output_directory) if output_directory is not None else project_root / "videos" / "output" / "timelines"
     destination.mkdir(parents=True, exist_ok=True)
     timeline_path = destination / f"timeline_{generated_at.strftime('%Y%m%d_%H%M%S')}.json"
     temporary_path = timeline_path.with_suffix(".json.tmp")

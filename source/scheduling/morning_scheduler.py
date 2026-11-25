@@ -34,9 +34,23 @@ def build_morning_schedule(
         ("songs", "songs_duration_minutes", "Regular songs"),
     ):
         block_duration_seconds = morning[duration_key] * 60
-        song_duration_seconds = block_duration_seconds - transition_seconds
         section_start_elapsed = elapsed_cursor
         section_start_wall = start_seconds + elapsed_cursor
+        if block_duration_seconds == 0:
+            sections.append({
+                "collection": collection,
+                "label": label,
+                "configured_duration_minutes": 0,
+                "song_playback_duration_seconds": 0,
+                "transition_black_duration_seconds": 0,
+                "wall_clock_start_timestamp": format_wall_clock(section_start_wall),
+                "wall_clock_end_timestamp": format_wall_clock(section_start_wall),
+                "elapsed_broadcast_start_seconds": section_start_elapsed,
+                "elapsed_broadcast_end_seconds": elapsed_cursor,
+                "song_play_count": 0,
+            })
+            continue
+        song_duration_seconds = block_duration_seconds - transition_seconds
         state = SongSelectionState(
             inventory["categories"][collection].get("files", []),
             settings["songs"]["playback_order"],

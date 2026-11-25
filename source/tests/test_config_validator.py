@@ -6,6 +6,7 @@ import io
 import sys
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SOURCE_ROOT))
@@ -45,7 +46,8 @@ class MorningConfigurationTests(unittest.TestCase):
 
     def test_invalid_morning_total_stops_before_discovery_or_simulation(self) -> None:
         output = io.StringIO()
-        with patch.object(sys, "argv", ["main.py", "--mode", "json", "--simulate"]), \
+        with patch.object(sys, "argv", ["main.py", "--mode", "json"]), \
+             patch.object(app_main, "check_license", return_value=SimpleNamespace(valid=True)), \
              patch.object(app_main, "load_settings", return_value=self.settings(120, 59)), \
              patch.object(app_main, "discover_media") as discover, \
              patch.object(app_main, "run_simulation") as simulate, \

@@ -14,12 +14,12 @@ if str(SOURCE_ROOT) not in sys.path:
 from media.media_discovery import discover_media  # noqa: E402
 from config.settings_loader import load_settings  # noqa: E402
 from reporting.terminal_ui import TerminalUI  # noqa: E402
+from security.license_manager import check_license  # noqa: E402
 from simulation.timeline_simulator import run_simulation  # noqa: E402
 from validation.movie_validator import validate_movies  # noqa: E402
 from validation.ad_validator import validate_advertisements  # noqa: E402
 from validation.song_validator import validate_songs  # noqa: E402
-from validation.config_validator import validate_morning_schedule  # noqa: E402
-from validation.config_validator import validate_broadcast_end_time  # noqa: E402
+from validation.config_validator import validate_settings  # noqa: E402
 from scheduling.ending_scheduler import (  # noqa: E402
     EndingSongCapacityError,
     EndingSongConfirmationRejected,
@@ -43,13 +43,17 @@ def main() -> int:
     )
     args = parser.parse_args()
     ui = TerminalUI()
+    license_result = check_license()
+    ui.license_check_result(license_result)
+    if not license_result.valid:
+        return 3
     settings = None
     try:
         settings = load_settings()
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         ui.error(f"Unable to load application settings: {exc}")
         return 1
-    config_errors = validate_morning_schedule(settings) + validate_broadcast_end_time(settings)
+    config_errors = validate_settings(settings)
     if config_errors:
         ui.configuration_validation_errors(config_errors)
         return 2

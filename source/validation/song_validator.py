@@ -111,8 +111,15 @@ def validate_songs(inventory: Any, settings: Any) -> dict[str, Any]:
 
     collections_to_check: set[str] = set()
     if morning_enabled:
-        collections_to_check.update(("dev-songs", "songs"))
-    elif ending_enabled:
+        morning_settings = settings.get("morning_schedule", {}) if isinstance(settings, dict) else {}
+        if isinstance(morning_settings, dict):
+            if morning_settings.get("dev_songs_duration_minutes", 0) != 0:
+                collections_to_check.add("dev-songs")
+            if morning_settings.get("songs_duration_minutes", 0) != 0:
+                collections_to_check.add("songs")
+        else:
+            collections_to_check.update(("dev-songs", "songs"))
+    if ending_enabled:
         collections_to_check.add("songs")
     if movie_gap_enabled:
         collections_to_check.add("movie-songs")
@@ -144,8 +151,10 @@ def validate_songs(inventory: Any, settings: Any) -> dict[str, Any]:
             ("songs", "MEDIAMORNINGSONG", "songs_duration_minutes", "Regular songs"),
         ):
             configured_minutes = morning.get(setting_key)
-            if isinstance(configured_minutes, bool) or not isinstance(configured_minutes, (int, float)) or not math.isfinite(configured_minutes) or configured_minutes <= 0:
+            if isinstance(configured_minutes, bool) or not isinstance(configured_minutes, (int, float)) or not math.isfinite(configured_minutes) or configured_minutes < 0:
                 errors.append(_error(prefix, 15, f"Configured {label.lower()} duration is missing or invalid."))
+                continue
+            if configured_minutes == 0:
                 continue
             required = configured_minutes * 60 - transition_seconds
             available = sum(collections[collection].values())
