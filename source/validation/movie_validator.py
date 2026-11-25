@@ -1,4 +1,4 @@
-"""Movie-only structural and duration checks for simulated JSON inventory."""
+"""Movie structural and duration checks for normalized media inventories."""
 
 from __future__ import annotations
 
@@ -12,9 +12,8 @@ MIN_MOVIE_DURATION_SECONDS = 30 * 60
 MAX_MOVIE_DURATION_SECONDS = 4 * 60 * 60
 ALLOWED_MOVIE_EXTENSIONS = {".mp4", ".mkv"}
 
-# The current normalized inventory calls folders m1, m2, etc. The verbose
-# movie1 form is also accepted for inventory producers using the brief's names.
-_FOLDER_NAME = re.compile(r"(?:m|movie)([1-9][0-9]*)\Z")
+# Movie folder names use the full "movie" prefix, with case-insensitive text.
+_FOLDER_NAME = re.compile(r"movie([1-9][0-9]*)\Z", re.IGNORECASE)
 _MOVIES_METADATA_KEYS = {"exists", "path", "folders", "files"}
 _FOLDER_METADATA_KEYS = {"folder_id", "exists", "path", "files"}
 
@@ -52,9 +51,8 @@ def _movie_collection(inventory: Any) -> tuple[dict[str, Any] | None, list[str]]
 def validate_movies(inventory: Any) -> list[str]:
     """Return fatal movie inventory errors; an empty list means validation passed.
 
-    This inspects JSON values only. It never opens referenced media paths.
-    The input may be the stored inventory JSON object or the normalized
-    provider result, since both use a categories/movies/folders structure.
+    This inspects normalized inventory metadata only. It never opens media
+    paths; JSON and filesystem providers both supply this same structure.
     """
     movies, errors = _movie_collection(inventory)
     if movies is None:
@@ -85,11 +83,11 @@ def validate_movies(inventory: Any) -> list[str]:
             continue
         folder_name = folder.get("folder_id")
         if not isinstance(folder_name, str):
-            errors.append(_error(9, f"MOVIES entry {index + 1} has no valid folder identifier; expected m1 or movie1 format."))
+            errors.append(_error(9, f"MOVIES entry {index + 1} has no valid folder identifier; expected movie1 format (case-insensitive)."))
             continue
         match = _FOLDER_NAME.fullmatch(folder_name)
         if not match:
-            errors.append(_error(10, f"Unexpected movie folder name {folder_name!r}; expected lowercase m1 through m{MAX_MOVIES} (or movie1 through movie{MAX_MOVIES})."))
+            errors.append(_error(10, f"Unexpected movie folder name {folder_name!r}; expected movie1 through movie{MAX_MOVIES} (case-insensitive)."))
             continue
 
         number = int(match.group(1))

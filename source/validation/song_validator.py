@@ -1,4 +1,4 @@
-"""JSON-inventory validation for morning and movie-filler song pools."""
+"""Validation for morning and movie-filler pools in normalized inventories."""
 
 from __future__ import annotations
 
@@ -92,7 +92,7 @@ def _collection_records(inventory: Any, collection: str, prefix: str, label: str
 
 
 def validate_songs(inventory: Any, settings: Any) -> dict[str, Any]:
-    """Validate morning song pools and movie-gap pool using JSON metadata only."""
+    """Validate only song pools used by the enabled schedule blocks."""
     errors: list[str] = []
     categories = inventory.get("categories", inventory) if isinstance(inventory, dict) else None
     if not isinstance(categories, dict):
@@ -102,71 +102,92 @@ def validate_songs(inventory: Any, settings: Any) -> dict[str, Any]:
             _error("MEDIAMOVIESONG", 1, "Media inventory categories must be a JSON object."),
         ], "warnings": [], "warning": None}
 
+    toggles = settings.get("schedule_toggles", {}) if isinstance(settings, dict) else {}
+    if not isinstance(toggles, dict):
+        return {"errors": [_error("MEDIASONG", 17, "Schedule toggles must be a JSON object.")], "warnings": [], "warning": None}
+    morning_enabled = toggles.get("morning_block_enabled", True)
+    movie_gap_enabled = toggles.get("movie_gap_song_filler_enabled", True)
+    ending_enabled = toggles.get("broadcast_ending_song_filler_enabled", True)
+
+    collections_to_check: set[str] = set()
+    if morning_enabled:
+        collections_to_check.update(("dev-songs", "songs"))
+    elif ending_enabled:
+        collections_to_check.add("songs")
+    if movie_gap_enabled:
+        collections_to_check.add("movie-songs")
+
     collections: dict[str, dict[str, int | float]] = {}
     for collection, prefix, label in _COLLECTIONS:
-        _, collections[collection] = _collection_records(inventory, collection, prefix, label, errors)
+        if collection in collections_to_check:
+            _, collections[collection] = _collection_records(inventory, collection, prefix, label, errors)
     if errors:
         return {"errors": errors, "warnings": [], "warning": None}
+    if not collections_to_check:
+        return {
+            "errors": [], "warnings": [], "warning": None,
+            "warning_code": None, "details": None, "skipped": True,
+        }
 
-    morning = settings.get("morning_schedule") if isinstance(settings, dict) else None
-    if not isinstance(morning, dict):
-        return {"errors": [_error("MEDIAMORNINGSONG", 15, "Morning schedule settings are missing; cannot calculate song capacity.")], "warnings": [], "warning": None}
-    transition_seconds = morning.get("transition_black_duration_seconds")
-    if isinstance(transition_seconds, bool) or not isinstance(transition_seconds, (int, float)) or not math.isfinite(transition_seconds) or transition_seconds < 0:
-        return {"errors": [_error("MEDIAMORNINGSONG", 15, "Morning transition black duration is missing or invalid; cannot calculate song capacity.")], "warnings": [], "warning": None}
-
-    errors_by_collection = {
-        "dev-songs": ("MEDIADEVSONG", "dev_songs_duration_minutes", "Devotional songs"),
-        "songs": ("MEDIAMORNINGSONG", "songs_duration_minutes", "Regular songs"),
-    }
     warnings: list[dict[str, Any]] = []
     movie_details: dict[str, Any] | None = None
-    for collection, (prefix, setting_key, label) in errors_by_collection.items():
-        configured_minutes = morning.get(setting_key)
-        if isinstance(configured_minutes, bool) or not isinstance(configured_minutes, (int, float)) or not math.isfinite(configured_minutes) or configured_minutes <= 0:
-            errors.append(_error(prefix, 15, f"Configured {label.lower()} duration is missing or invalid."))
-            continue
-        required = configured_minutes * 60 - transition_seconds
-        available = sum(collections[collection].values())
-        coverage = available / required * 100
-        details = {
-            "collection": collection,
-            "label": label,
-            "required_duration_seconds": required,
-            "available_unique_duration_seconds": available,
-            "coverage_percentage": coverage,
-        }
-        if coverage < MIN_MORNING_SONG_COVERAGE_PERCENT:
-            errors.append(_error(prefix, 16, f"{label} library coverage is {coverage:.2f}%, below the required minimum of 60% of its configured {configured_minutes:g}-minute block."))
-        elif coverage <= MAX_MORNING_SONG_WARNING_COVERAGE_PERCENT:
-            warnings.append({"code": f"{prefix}-W001", "details": details})
+    if morning_enabled:
+        morning = settings.get("morning_schedule") if isinstance(settings, dict) else None
+        if not isinstance(morning, dict):
+            return {"errors": [_error("MEDIAMORNINGSONG", 15, "Morning schedule settings are missing; cannot calculate song capacity.")], "warnings": [], "warning": None}
+        transition_seconds = morning.get("transition_black_duration_seconds")
+        if isinstance(transition_seconds, bool) or not isinstance(transition_seconds, (int, float)) or not math.isfinite(transition_seconds) or transition_seconds < 0:
+            return {"errors": [_error("MEDIAMORNINGSONG", 15, "Morning transition black duration is missing or invalid; cannot calculate song capacity.")], "warnings": [], "warning": None}
 
-    movie_settings = settings.get("movie") if isinstance(settings, dict) else None
-    if not isinstance(movie_settings, dict):
-        errors.append(_error("MEDIAMOVIESONG", 15, "Movie scheduling settings are missing; cannot calculate movie-song capacity."))
-    else:
-        try:
-            max_gap = maximum_movie_start_wait_seconds(
-                movie_settings["allowed_start_minutes"],
-                movie_settings["start_time_tolerance_seconds"],
-            )
-        except (KeyError, TypeError, ValueError, OverflowError):
-            errors.append(_error("MEDIAMOVIESONG", 15, "Movie start settings are missing or invalid; cannot calculate movie-song capacity reliably."))
-        else:
-            available = sum(collections["movie-songs"].values())
-            coverage = 100.0 if max_gap == 0 else available / max_gap * 100
+        for collection, prefix, setting_key, label in (
+            ("dev-songs", "MEDIADEVSONG", "dev_songs_duration_minutes", "Devotional songs"),
+            ("songs", "MEDIAMORNINGSONG", "songs_duration_minutes", "Regular songs"),
+        ):
+            configured_minutes = morning.get(setting_key)
+            if isinstance(configured_minutes, bool) or not isinstance(configured_minutes, (int, float)) or not math.isfinite(configured_minutes) or configured_minutes <= 0:
+                errors.append(_error(prefix, 15, f"Configured {label.lower()} duration is missing or invalid."))
+                continue
+            required = configured_minutes * 60 - transition_seconds
+            available = sum(collections[collection].values())
+            coverage = available / required * 100
             details = {
-                "collection": "movie-songs",
-                "label": "Movie songs",
-                "maximum_filler_gap_seconds": max_gap,
-                "total_unique_movie_song_duration_seconds": available,
+                "collection": collection,
+                "label": label,
+                "required_duration_seconds": required,
+                "available_unique_duration_seconds": available,
                 "coverage_percentage": coverage,
             }
-            movie_details = details
-            if coverage < MIN_MOVIE_SONG_COVERAGE_PERCENT:
-                errors.append(_error("MEDIAMOVIESONG", 16, f"Movie-song library coverage is {coverage:.2f}%, below the required minimum of 60% of the maximum filler gap."))
-            elif coverage < WARNING_MOVIE_SONG_COVERAGE_PERCENT:
-                warnings.append({"code": "MEDIAMOVIESONG-W001", "details": details})
+            if coverage < MIN_MORNING_SONG_COVERAGE_PERCENT:
+                errors.append(_error(prefix, 16, f"{label} library coverage is {coverage:.2f}%, below the required minimum of 60% of its configured {configured_minutes:g}-minute block."))
+            elif coverage <= MAX_MORNING_SONG_WARNING_COVERAGE_PERCENT:
+                warnings.append({"code": f"{prefix}-W001", "details": details})
+
+    if movie_gap_enabled:
+        movie_settings = settings.get("movie") if isinstance(settings, dict) else None
+        if not isinstance(movie_settings, dict):
+            errors.append(_error("MEDIAMOVIESONG", 15, "Movie scheduling settings are missing; cannot calculate movie-song capacity."))
+        else:
+            try:
+                max_gap = maximum_movie_start_wait_seconds(
+                    movie_settings["allowed_start_minutes"],
+                    movie_settings["start_time_tolerance_seconds"],
+                )
+            except (KeyError, TypeError, ValueError, OverflowError):
+                errors.append(_error("MEDIAMOVIESONG", 15, "Movie start settings are missing or invalid; cannot calculate movie-song capacity reliably."))
+            else:
+                available = sum(collections["movie-songs"].values())
+                coverage = 100.0 if max_gap == 0 else available / max_gap * 100
+                movie_details = {
+                    "collection": "movie-songs",
+                    "label": "Movie songs",
+                    "maximum_filler_gap_seconds": max_gap,
+                    "total_unique_movie_song_duration_seconds": available,
+                    "coverage_percentage": coverage,
+                }
+                if coverage < MIN_MOVIE_SONG_COVERAGE_PERCENT:
+                    errors.append(_error("MEDIAMOVIESONG", 16, f"Movie-song library coverage is {coverage:.2f}%, below the required minimum of 60% of the maximum filler gap."))
+                elif coverage < WARNING_MOVIE_SONG_COVERAGE_PERCENT:
+                    warnings.append({"code": "MEDIAMOVIESONG-W001", "details": movie_details})
 
     if errors:
         warnings = []

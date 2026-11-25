@@ -11,9 +11,25 @@ _TIME_PATTERN = re.compile(r"([01][0-9]|2[0-3]):([0-5][0-9])\Z")
 
 
 def validate_morning_schedule(settings: Any) -> list[str]:
-    """Validate the configured morning block's required 180-minute span."""
+    """Validate schedule switches and the morning block when it is enabled."""
     errors: list[str] = []
-    if not isinstance(settings, dict) or not isinstance(settings.get("morning_schedule"), dict):
+    if not isinstance(settings, dict):
+        return ["MORNING_SETTINGS_MISSING: The application settings object is missing or invalid."]
+
+    toggles = settings.get("schedule_toggles", {})
+    if not isinstance(toggles, dict):
+        return ["SCHEDULE_TOGGLES_INVALID: schedule_toggles must be a JSON object."]
+    for key in (
+        "morning_block_enabled",
+        "movie_gap_song_filler_enabled",
+        "broadcast_ending_song_filler_enabled",
+    ):
+        if key in toggles and not isinstance(toggles[key], bool):
+            errors.append(f"SCHEDULE_TOGGLE_INVALID: schedule_toggles.{key} must be true or false.")
+    if errors or not toggles.get("morning_block_enabled", True):
+        return errors
+
+    if not isinstance(settings.get("morning_schedule"), dict):
         return ["MORNING_SETTINGS_MISSING: The morning_schedule settings section is missing or invalid."]
     morning = settings["morning_schedule"]
     durations: list[int | float] = []

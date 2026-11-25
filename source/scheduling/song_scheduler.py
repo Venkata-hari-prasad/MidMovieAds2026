@@ -186,8 +186,9 @@ def fill_waiting_gaps(
     plan: dict[str, Any],
     inventory: dict[str, Any],
     song_settings: dict[str, Any],
+    enabled: bool = True,
 ) -> dict[str, Any]:
-    """Insert movie-songs inside planned gaps without moving movie starts."""
+    """Insert movie-songs in planned gaps, or keep gaps explicitly empty."""
     songs = inventory["categories"]["movie-songs"].get("files", [])
     state = SongSelectionState(songs, song_settings["playback_order"])
     cut_early = song_settings["cut_early_seconds"]
@@ -203,7 +204,14 @@ def fill_waiting_gaps(
         gap_id = item.gap_id or f"gap-{len(songs_by_gap) + 1}"
         item = replace(item, gap_id=gap_id, waiting_gap_id=gap_id)
         state.reset_for_gap()
-        fill_items, records = fill_one_gap(item, state, cut_early)
+        if enabled:
+            fill_items, records = fill_one_gap(item, state, cut_early)
+        else:
+            fill_items = [replace(
+                item,
+                reason="Movie-gap song filler is disabled; waiting for the next eligible movie start.",
+            )]
+            records = []
         new_items.extend(fill_items)
         songs_by_gap[gap_id] = records
 

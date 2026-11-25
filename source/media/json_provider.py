@@ -30,13 +30,18 @@ def _file_record(raw: Any, category: str, source_type: str, where: str) -> dict[
     path = raw.get("path", filename)
     if not isinstance(path, str) or not path.strip():
         raise InventoryFormatError(f"{where}.path must be a non-empty string.")
-    return {
+    record = {
         "filename": filename,
         "path": path,
         "duration_seconds": _duration(raw.get("duration_seconds"), where),
         "category": category,
         "source_type": source_type,
     }
+    # Preserve structural metadata consumed by the shared validators.
+    for key in ("folders", "children"):
+        if key in raw:
+            record[key] = raw[key]
+    return record
 
 
 def discover_json(inventory_path: str | Path) -> dict[str, Any]:
@@ -59,8 +64,7 @@ def discover_json(inventory_path: str | Path) -> dict[str, Any]:
     source_type = "json"
     for category in CATEGORIES:
         if category not in raw_categories:
-            categories[category] = {"exists": False, "path": None}
-            categories[category]["folders" if category == "movies" else "files"] = []
+            categories[category] = {"exists": False, "path": None, "folders": [], "files": []}
             continue
         raw_category = raw_categories[category]
         if not isinstance(raw_category, dict):
@@ -94,14 +98,21 @@ def discover_json(inventory_path: str | Path) -> dict[str, Any]:
                     "path": folder.get("path", folder_id),
                     "files": [_file_record(item, category, source_type, f"{where}.files[{i}]")
                               for i, item in enumerate(raw_files)],
+                    **({"folders": folder["folders"]} if "folders" in folder else {}),
                 })
+            raw_direct_files = raw_category.get("files", [])
+            if not isinstance(raw_direct_files, list):
+                raise InventoryFormatError("Category 'movies'.files must be a list.")
             entry["folders"] = folders
+            entry["files"] = [_file_record(item, category, source_type, f"movies.files[{i}]")
+                              for i, item in enumerate(raw_direct_files)]
         else:
             raw_files = raw_category.get("files", [])
             if not isinstance(raw_files, list):
                 raise InventoryFormatError(f"Category {category!r}.files must be a list.")
             entry["files"] = [_file_record(item, category, source_type, f"{category}.files[{i}]")
                               for i, item in enumerate(raw_files)]
+            entry["folders"] = raw_category.get("folders", raw_category.get("subfolders", []))
         categories[category] = entry
 
     return {"source_type": source_type, "categories": categories}

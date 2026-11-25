@@ -14,7 +14,7 @@ except ImportError:  # source directory used directly on sys.path
 
 
 def _movie_folder_order(folder_id: str) -> tuple[Any, ...]:
-    match = re.fullmatch(r"m(\d+)", folder_id, flags=re.IGNORECASE)
+    match = re.fullmatch(r"movie(\d+)", folder_id, flags=re.IGNORECASE)
     if match:
         return (0, int(match.group(1)), folder_id.casefold())
     return (1, folder_id.casefold(), folder_id)

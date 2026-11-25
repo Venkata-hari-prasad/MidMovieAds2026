@@ -91,9 +91,15 @@ def schedule_ending_songs(
     inventory: dict[str, Any],
     settings: dict[str, Any],
     confirm_warning: Callable[[dict[str, Any]], bool] | None = None,
+    enabled: bool = True,
 ) -> dict[str, Any]:
-    """Append regular songs to the target, or report exact/overrun without edits."""
+    """Append regular songs when enabled, or report the configured target status."""
     report = evaluate_end_time(plan, settings)
+    report["ending_filler_enabled"] = enabled
+    if report["status"] == "ending_songs_required" and not enabled:
+        report["status"] = "ending_filler_disabled"
+        plan["ending_schedule"] = report
+        return report
     if report["status"] != "ending_songs_required":
         plan["ending_schedule"] = report
         return report

@@ -5,14 +5,15 @@ Normalized inventory shape::
     {
         "source_type": "filesystem" | "json",
         "categories": {
-            "movies": {"exists": bool, "path": str, "folders": [
+            "movies": {"exists": bool, "path": str, "files": [...], "folders": [
                 {"folder_id": str, "exists": bool, "path": str,
                  "files": [{"filename": str, "path": str,
                             "duration_seconds": int | float | None,
-                            "category": "movies", "source_type": str}]}
+                            "category": "movies", "source_type": str}],
+                 "folders": [...] (only when nested directories exist)}
             ]},
             "dev-songs" | "movie-songs" | "songs" | "ads": {
-                "exists": bool, "path": str,
+                "exists": bool, "path": str, "folders": [...],
                 "files": [{"filename": str, "path": str,
                            "duration_seconds": int | float | None,
                            "category": str, "source_type": str}]
@@ -21,7 +22,9 @@ Normalized inventory shape::
     }
 
 Existence flags distinguish absent paths/categories from present empty ones.
-Discovery reports inventory facts only; business validation belongs elsewhere.
+Directory records are retained so shared validators can identify forbidden
+nested folders. Discovery reports facts only; business validation belongs
+elsewhere.
 """
 
 from __future__ import annotations

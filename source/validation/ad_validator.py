@@ -1,4 +1,4 @@
-"""Advertisement inventory checks for simulated JSON inventory only."""
+"""Advertisement checks for normalized JSON and filesystem inventories."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def _error(code: int, message: str) -> str:
 
 
 def validate_advertisements(inventory: Any, settings: Any) -> dict[str, Any]:
-    """Return ad errors and load details without touching referenced media paths.
+    """Return ad errors and load details without opening media paths.
 
     Warning-range load is returned separately so startup can request explicit
     operator confirmation before discovery or simulation proceeds.

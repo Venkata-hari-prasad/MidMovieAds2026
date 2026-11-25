@@ -1,3 +1,6 @@
 __pycache__/
 *.py[cod]
 source/videos/output/timelines/
+source/videos/output/renders/
+source/videos/**/*.mp4
+source/videos/**/*.mkv

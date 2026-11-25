@@ -38,6 +38,14 @@ def _clock_seconds(value: str) -> int:
     return hour * 3600 + minute * 60 + second
 
 
+def _clock_rounding_drift(actual_timestamp: str, expected_seconds: int | float) -> float:
+    """Return circular wall-clock difference, accounting for midnight wrap."""
+    actual = _clock_seconds(actual_timestamp)
+    expected = expected_seconds % 86400
+    difference = abs(actual - expected) % 86400
+    return min(difference, 86400 - difference)
+
+
 def _movie_sources(inventory: dict[str, Any]) -> list[tuple[str, str, int | float]]:
     result = []
     for folder in inventory["categories"]["movies"].get("folders", []):
@@ -248,60 +256,74 @@ def check_timeline(
             movie_settings["allowed_start_minutes"],
             movie_settings["start_time_tolerance_seconds"],
         )
-        subsequent_movies_aligned &= _same(actual_start, selected_start)
-        tolerance_respected &= abs(actual_start - eligible_mark) <= movie_settings["start_time_tolerance_seconds"]
+        subsequent_movies_aligned &= (
+            _clock_rounding_drift(movie_record["wall_clock_start_timestamp"], selected_start) <= 1
+        )
+        # The serialized wall-clock timestamp is rounded to a whole second.
+        # Allow that representation's rounding when checking the scheduler's
+        # exact fractional start against its configured tolerance.
+        tolerance_respected &= (
+            abs(actual_start - eligible_mark)
+            <= movie_settings["start_time_tolerance_seconds"] + 1
+        )
     movie_starts_unchanged = [movie["wall_clock_start_timestamp"] for movie in plan["movies"]] == original_movie_starts
 
-    morning = plan["morning_schedule"]
-    morning_sections = morning["sections"]
-    transition_seconds = settings["morning_schedule"]["transition_black_duration_seconds"]
-    transition_items = [item for item in items if item.media_type == "black_video_placeholder"]
-    morning_timing_correct = bool(morning_sections) and morning["start_timestamp"] == settings["morning_schedule"]["start_time"] + ":00"
-    morning_timing_correct &= morning["end_timestamp"] == BROADCAST_START_TIME
+    toggles = settings.get("schedule_toggles", {})
+    morning_enabled = toggles.get("morning_block_enabled", True)
+    morning = plan.get("morning_schedule")
     morning_prefix = [item for item in items if item.schedule_block == "morning"]
-    morning_timing_correct &= len(morning_prefix) == len(morning_block_items)
-    morning_timing_correct &= all(item.media_type in ("song", "black_video_placeholder") for item in morning_prefix)
-    morning_timing_correct &= bool(morning_block_items) and morning_block_items[0].wall_clock_start_timestamp == morning["start_timestamp"]
-    morning_timing_correct &= morning_block_items[-1].wall_clock_end_timestamp == morning["end_timestamp"]
-    morning_timing_correct &= _same(sum(item.broadcast_duration_seconds for item in morning_block_items), 180 * 60)
-    morning_timing_correct &= len(transition_items) == (2 if transition_seconds else 0)
-    for left, right in zip(morning_block_items, morning_block_items[1:]):
-        morning_timing_correct &= left.elapsed_broadcast_end_seconds == right.elapsed_broadcast_start_seconds
-        morning_timing_correct &= left.wall_clock_end_timestamp == right.wall_clock_start_timestamp
-    devotional_items = [item for item in morning_items if item.source_category == "dev-songs"]
-    regular_morning_items = [item for item in morning_items if item.source_category == "songs"]
-    morning_timing_correct &= bool(devotional_items) and bool(regular_morning_items)
-    if devotional_items and regular_morning_items:
-        for section in morning_sections:
-            section_items = [item for item in morning_block_items if item.source_category == section["collection"]]
-            section_songs = [item for item in section_items if item.media_type == "song"]
-            section_transitions = [item for item in section_items if item.media_type == "black_video_placeholder"]
-            required_block_duration = section["configured_duration_minutes"] * 60
-            morning_timing_correct &= bool(section_songs)
-            morning_timing_correct &= bool(section_items) and section_items[0].wall_clock_start_timestamp == section["wall_clock_start_timestamp"]
-            morning_timing_correct &= section_items[-1].wall_clock_end_timestamp == section["wall_clock_end_timestamp"]
-            morning_timing_correct &= _same(sum(item.broadcast_duration_seconds for item in section_items), required_block_duration)
-            morning_timing_correct &= _same(sum(item.broadcast_duration_seconds for item in section_songs), required_block_duration - transition_seconds)
-            morning_timing_correct &= len(section_transitions) == (1 if transition_seconds else 0)
-            if section_transitions:
-                transition = section_transitions[0]
-                morning_timing_correct &= transition.broadcast_duration_seconds == transition_seconds
-                morning_timing_correct &= transition.source_path is None and transition.reason is not None
-                morning_timing_correct &= section_songs[-1].wall_clock_end_timestamp == transition.wall_clock_start_timestamp
-        morning_timing_correct &= morning_sections[0]["wall_clock_end_timestamp"] == morning_sections[1]["wall_clock_start_timestamp"]
-        if transition_seconds and len(transition_items) == 2:
-            morning_timing_correct &= transition_items[0].source_category == "dev-songs"
-            morning_timing_correct &= transition_items[-1].source_category == "songs"
-    morning_sources_correct = all(
-        item.source_path in {song["path"] for song in inventory["categories"][item.source_category].get("files", [])}
-        for item in morning_items
-    )
-    morning_sources_correct &= all(item.source_category != "movie-songs" for item in morning_items)
-    morning_sources_correct &= all(
-        (item.completion_status == "completed_naturally" and _same(item.broadcast_duration_seconds, item.source_duration_seconds))
-        or (item.completion_status == "hard_cut" and item.broadcast_duration_seconds < item.source_duration_seconds)
-        for item in morning_items
-    )
+    transition_items = [item for item in morning_prefix if item.media_type == "black_video_placeholder"]
+    if morning_enabled and isinstance(morning, dict):
+        morning_sections = morning["sections"]
+        transition_seconds = settings["morning_schedule"]["transition_black_duration_seconds"]
+        morning_timing_correct = bool(morning_sections) and morning["start_timestamp"] == settings["morning_schedule"]["start_time"] + ":00"
+        morning_timing_correct &= morning["end_timestamp"] == BROADCAST_START_TIME
+        morning_timing_correct &= len(morning_prefix) == len(morning_block_items)
+        morning_timing_correct &= all(item.media_type in ("song", "black_video_placeholder") for item in morning_prefix)
+        morning_timing_correct &= bool(morning_block_items) and morning_block_items[0].wall_clock_start_timestamp == morning["start_timestamp"]
+        morning_timing_correct &= morning_block_items[-1].wall_clock_end_timestamp == morning["end_timestamp"]
+        morning_timing_correct &= _same(sum(item.broadcast_duration_seconds for item in morning_block_items), 180 * 60)
+        morning_timing_correct &= len(transition_items) == (2 if transition_seconds else 0)
+        for left, right in zip(morning_block_items, morning_block_items[1:]):
+            morning_timing_correct &= left.elapsed_broadcast_end_seconds == right.elapsed_broadcast_start_seconds
+            morning_timing_correct &= left.wall_clock_end_timestamp == right.wall_clock_start_timestamp
+        devotional_items = [item for item in morning_items if item.source_category == "dev-songs"]
+        regular_morning_items = [item for item in morning_items if item.source_category == "songs"]
+        morning_timing_correct &= bool(devotional_items) and bool(regular_morning_items)
+        if devotional_items and regular_morning_items:
+            for section in morning_sections:
+                section_items = [item for item in morning_block_items if item.source_category == section["collection"]]
+                section_songs = [item for item in section_items if item.media_type == "song"]
+                section_transitions = [item for item in section_items if item.media_type == "black_video_placeholder"]
+                required_block_duration = section["configured_duration_minutes"] * 60
+                morning_timing_correct &= bool(section_songs)
+                morning_timing_correct &= bool(section_items) and section_items[0].wall_clock_start_timestamp == section["wall_clock_start_timestamp"]
+                morning_timing_correct &= section_items[-1].wall_clock_end_timestamp == section["wall_clock_end_timestamp"]
+                morning_timing_correct &= _same(sum(item.broadcast_duration_seconds for item in section_items), required_block_duration)
+                morning_timing_correct &= _same(sum(item.broadcast_duration_seconds for item in section_songs), required_block_duration - transition_seconds)
+                morning_timing_correct &= len(section_transitions) == (1 if transition_seconds else 0)
+                if section_transitions:
+                    transition = section_transitions[0]
+                    morning_timing_correct &= transition.broadcast_duration_seconds == transition_seconds
+                    morning_timing_correct &= transition.source_path is None and transition.reason is not None
+                    morning_timing_correct &= section_songs[-1].wall_clock_end_timestamp == transition.wall_clock_start_timestamp
+            morning_timing_correct &= morning_sections[0]["wall_clock_end_timestamp"] == morning_sections[1]["wall_clock_start_timestamp"]
+            if transition_seconds and len(transition_items) == 2:
+                morning_timing_correct &= transition_items[0].source_category == "dev-songs"
+                morning_timing_correct &= transition_items[-1].source_category == "songs"
+        morning_sources_correct = all(
+            item.source_path in {song["path"] for song in inventory["categories"][item.source_category].get("files", [])}
+            for item in morning_items
+        )
+        morning_sources_correct &= all(item.source_category != "movie-songs" for item in morning_items)
+        morning_sources_correct &= all(
+            (item.completion_status == "completed_naturally" and _same(item.broadcast_duration_seconds, item.source_duration_seconds))
+            or (item.completion_status == "hard_cut" and item.broadcast_duration_seconds < item.source_duration_seconds)
+            for item in morning_items
+        )
+    else:
+        morning_timing_correct = not morning_prefix and not morning_block_items
+        morning_sources_correct = not morning_items and not transition_items
 
     elapsed_continuity = True
     wall_clock_continuity = True
@@ -315,10 +337,10 @@ def check_timeline(
             item.broadcast_duration_seconds,
         )
         wall_clock_continuity &= item.wall_clock_start_timestamp == previous_wall_end
-        expected_start = (_clock_seconds(timeline_start) + item.elapsed_broadcast_start_seconds) % 86400
-        expected_end = (_clock_seconds(timeline_start) + item.elapsed_broadcast_end_seconds) % 86400
-        wall_clock_continuity &= _clock_seconds(item.wall_clock_start_timestamp) == expected_start
-        wall_clock_continuity &= _clock_seconds(item.wall_clock_end_timestamp) == expected_end
+        expected_start = _clock_seconds(timeline_start) + item.elapsed_broadcast_start_seconds
+        expected_end = _clock_seconds(timeline_start) + item.elapsed_broadcast_end_seconds
+        wall_clock_continuity &= _clock_rounding_drift(item.wall_clock_start_timestamp, expected_start) <= 1
+        wall_clock_continuity &= _clock_rounding_drift(item.wall_clock_end_timestamp, expected_end) <= 1
         previous_elapsed_end = item.elapsed_broadcast_end_seconds
         previous_wall_end = item.wall_clock_end_timestamp
     total_sum_matches = _same(previous_elapsed_end, sum(item.broadcast_duration_seconds for item in items))
@@ -341,6 +363,16 @@ def check_timeline(
         ending_schedule_correct &= not ending_items and _same(plan["total_broadcast_duration_seconds"], target_elapsed)
     elif end_report["status"] == "overrun":
         ending_schedule_correct &= not ending_items and plan["total_broadcast_duration_seconds"] > target_elapsed
+    elif end_report["status"] == "ending_filler_disabled":
+        ending_schedule_correct &= not ending_items
+        ending_schedule_correct &= plan["total_broadcast_duration_seconds"] < target_elapsed
+        ending_schedule_correct &= _same(
+            plan["total_broadcast_duration_seconds"],
+            end_report["timeline_before_filler_elapsed_seconds"],
+        )
+        ending_schedule_correct &= (
+            end_report["planned_finish"] == end_report["timeline_before_filler_finish"]
+        )
     else:
         ending_schedule_correct = False
 
@@ -373,6 +405,11 @@ def _prepend_morning_schedule(
     settings: dict[str, Any],
 ) -> dict[str, Any]:
     """Prefix the 06:00 morning block while retaining all 09:00 movie times."""
+    toggles = settings.get("schedule_toggles", {})
+    if not toggles.get("morning_block_enabled", True):
+        plan["morning_schedule"] = None
+        return plan
+
     morning = build_morning_schedule(inventory, settings)
     offset = morning["duration_seconds"]
     morning_count = len(morning["items"])
@@ -413,9 +450,21 @@ def run_simulation(
     """Build, verify, and save the complete execution blueprint as JSON."""
     plan = build_playlist(inventory, settings, broadcast_start_time)
     original_movie_starts = [movie["wall_clock_start_timestamp"] for movie in plan["movies"]]
-    fill_waiting_gaps(plan, inventory, settings["songs"])
+    toggles = settings.get("schedule_toggles", {})
+    fill_waiting_gaps(
+        plan,
+        inventory,
+        settings["songs"],
+        enabled=toggles.get("movie_gap_song_filler_enabled", True),
+    )
     _prepend_morning_schedule(plan, inventory, settings)
-    schedule_ending_songs(plan, inventory, settings, ending_song_confirmation)
+    schedule_ending_songs(
+        plan,
+        inventory,
+        settings,
+        ending_song_confirmation,
+        enabled=toggles.get("broadcast_ending_song_filler_enabled", True),
+    )
     movie_sources = _movie_sources(inventory)
     original_movie_duration = sum(duration for _, _, duration in movie_sources)
     actual_movie_duration = sum(item.broadcast_duration_seconds for item in plan["items"] if item.media_type == "movie_segment")
@@ -434,6 +483,11 @@ def run_simulation(
             "songs": settings["songs"],
             "morning_schedule": settings["morning_schedule"],
             "broadcast": settings["broadcast"],
+            "schedule_toggles": {
+                "morning_block_enabled": toggles.get("morning_block_enabled", True),
+                "movie_gap_song_filler_enabled": toggles.get("movie_gap_song_filler_enabled", True),
+                "broadcast_ending_song_filler_enabled": toggles.get("broadcast_ending_song_filler_enabled", True),
+            },
         },
         "morning_schedule": plan["morning_schedule"],
         "ending_schedule": plan["ending_schedule"],

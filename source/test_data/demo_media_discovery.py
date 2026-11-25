@@ -4,6 +4,7 @@ from pathlib import Path
 import json
 import sys
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SOURCE_ROOT))
@@ -26,21 +27,22 @@ def main() -> None:
     assert all(song["duration_seconds"] for name in ("ads", "dev-songs", "movie-songs", "songs")
                for song in categories[name]["files"])
 
-    # Exercise the filesystem provider in isolation with temporary placeholder
-    # files. Discovery records names and paths; it does not inspect media bytes.
+    # Exercise the filesystem provider with placeholder files while substituting
+    # duration metadata; FFprobe cannot read these intentionally empty files.
     with TemporaryDirectory() as temporary:
         media_root = Path(temporary)
         for category in ("movies", "dev-songs", "movie-songs", "songs", "ads"):
             (media_root / category).mkdir()
-        for folder_id in ("m1", "m2", "m10"):
+        for folder_id in ("MoVie1", "MOVIE2", "movie3"):
             folder = media_root / "movies" / folder_id
             folder.mkdir()
             (folder / (folder_id + ".mp4")).touch()
         (media_root / "ads" / "sample-ad.mp4").touch()
-        filesystem_inventory = discover_media({
-            "discovery_mode": "filesystem",
-            "media_root": str(media_root),
-        })
+        with patch("media.filesystem_provider.probe_duration_seconds", return_value=123.5):
+            filesystem_inventory = discover_media({
+                "discovery_mode": "filesystem",
+                "media_root": str(media_root),
+            })
         (media_root / "inventory.json").write_text(json.dumps({
             "movies": {"exists": False, "folders": []},
             "dev-songs": {"exists": True, "files": []},
@@ -73,7 +75,7 @@ def main() -> None:
     assert set(json_inventory["categories"]["movies"]) == set(filesystem_inventory["categories"]["movies"])
     assert set(json_inventory["categories"]["songs"]) == set(filesystem_inventory["categories"]["songs"])
     assert set(json_inventory["categories"]["movie-songs"]) == set(filesystem_inventory["categories"]["movie-songs"])
-    assert [folder["folder_id"] for folder in filesystem_inventory["categories"]["movies"]["folders"]] == ["m1", "m2", "m10"]
+    assert [folder["folder_id"] for folder in filesystem_inventory["categories"]["movies"]["folders"]] == ["MoVie1", "MOVIE2", "movie3"]
     assert filesystem_inventory["categories"]["dev-songs"]["exists"] is True
     assert filesystem_inventory["categories"]["dev-songs"]["files"] == []
     assert filesystem_inventory["categories"]["songs"]["exists"] is True
@@ -81,7 +83,7 @@ def main() -> None:
 
     print("JSON inventory: 6 movies, 3 ads, 6 devotional songs, 3 movie songs, 6 regular songs")
     print("Movie folder IDs preserved; durations present; provider structures compatible")
-    print("Filesystem provider independently discovered temporary directory contents")
+    print("Filesystem provider discovered temporary entries with stubbed probe durations")
 
 
 if __name__ == "__main__":

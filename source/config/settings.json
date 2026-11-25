@@ -25,5 +25,10 @@
   },
   "broadcast": {
     "end_time": "18:00"
+  },
+  "schedule_toggles": {
+    "morning_block_enabled": false,
+    "movie_gap_song_filler_enabled": true,
+    "broadcast_ending_song_filler_enabled": false
   }
 }
